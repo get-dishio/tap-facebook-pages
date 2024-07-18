@@ -1,4 +1,7 @@
 """Stream class for tap-facebook-pages."""
+import hashlib
+import hmac
+import os
 import time as t
 import datetime
 import re
@@ -53,6 +56,16 @@ def is_status_code_fn(blacklist=None, whitelist=None):
 
     return gen_fn
 
+def _gen_appsecret_proof(access_token=None):
+    app_secret = os.getenv("OAUTH_CLIENT_SECRET")
+    h = hmac.new(
+        app_secret.encode('utf-8'),
+        msg=access_token.encode('utf-8'),
+        digestmod=hashlib.sha256
+    )
+
+    appsecret_proof = h.hexdigest()
+    return {"appsecret_proof": appsecret_proof}
 
 def retry_handler(details):
     """
@@ -191,7 +204,7 @@ class FacebookPagesStream(RESTStream):
             params.update({"access_token": self.access_tokens[partition["page_id"]]})
         else:
             self.logger.info("Not enough rights for page: " + partition["page_id"])
-
+        params.update(_gen_appsecret_proof(params.get("access_token")))
         params.update({"limit": 100})
         return params
 
@@ -352,6 +365,8 @@ class Posts(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
+            params.update(_gen_appsecret_proof(params.get("access_token")))
+
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -400,6 +415,7 @@ class PostTaggedProfile(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
+            params.update(_gen_appsecret_proof(params.get("access_token")))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -453,6 +469,7 @@ class PostAttachments(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
+            params.update(_gen_appsecret_proof(params.get("access_token")))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -512,6 +529,7 @@ class PageInsights(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
+            params.update(_gen_appsecret_proof(params.get("access_token")))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -578,6 +596,7 @@ class PostInsights(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
+            params.update(_gen_appsecret_proof(params.get("access_token")))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
