@@ -365,7 +365,7 @@ class Posts(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
-            params.update(_gen_appsecret_proof(params.get("access_token")))
+            params.update(_gen_appsecret_proof(params["access_token"][0]))
 
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
@@ -415,7 +415,7 @@ class PostTaggedProfile(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
-            params.update(_gen_appsecret_proof(params.get("access_token")))
+            params.update(_gen_appsecret_proof(params["access_token"][0]))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -469,7 +469,7 @@ class PostAttachments(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
-            params.update(_gen_appsecret_proof(params.get("access_token")))
+            params.update(_gen_appsecret_proof(params["access_token"][0]))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -529,7 +529,7 @@ class PageInsights(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
-            params.update(_gen_appsecret_proof(params.get("access_token")))
+            params.update(_gen_appsecret_proof(params["access_token"][0]))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
@@ -596,7 +596,7 @@ class PostInsights(FacebookPagesStream):
             params = super().get_url_params(partition, next_page_token)
         else:
             params = next_page_token
-            params.update(_gen_appsecret_proof(params.get("access_token")))
+            params.update(_gen_appsecret_proof(params["access_token"][0]))
         time = int(t.time()) + 86400  # add one day to the last until time
         day = int(datetime.timedelta(1).total_seconds())
         if not next_page_token:
