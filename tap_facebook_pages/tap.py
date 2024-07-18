@@ -1,6 +1,9 @@
 """facebook-pages tap class."""
+import hashlib
+import hmac
 import json
 import logging
+import os
 from pathlib import PurePath
 from typing import List, Union
 import requests
@@ -35,7 +38,16 @@ BASE_URL = "https://graph.facebook.com/{page_id}"
 
 session = requests.Session()
 
+def _gen_appsecret_proof(access_token=None):
+    app_secret = os.getenv("OAUTH_CLIENT_SECRET")
+    h = hmac.new(
+        app_secret.encode('utf-8'),
+        msg=access_token.encode('utf-8'),
+        digestmod=hashlib.sha256
+    )
 
+    appsecret_proof = h.hexdigest()
+    return {"appsecret_proof": appsecret_proof}
 class TapFacebookPages(Tap):
     name = PLUGIN_NAME
 
@@ -60,6 +72,7 @@ class TapFacebookPages(Tap):
             'fields': 'access_token,name',
             'access_token': access_token
         }
+        data.update(_gen_appsecret_proof(data["access_token"]))
 
         self.logger.info("Exchanging access token for page with id=" + page_id)
         response = session.get(url=url, params=data)
@@ -79,6 +92,8 @@ class TapFacebookPages(Tap):
         params = {
             "access_token": access_token,
         }
+        params.update(_gen_appsecret_proof(params["access_token"]))
+
         response = session.get(ME_URL, params=params)
         response_json = response.json()
 
