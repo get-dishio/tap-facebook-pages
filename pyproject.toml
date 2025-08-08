@@ -25,3 +25,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 # CLI declaration
 tap-facebook-pages = 'tap_facebook_pages.tap:cli'
+tap-facebook-pages-v2 = 'tap_facebook_pages.tap:cli'
