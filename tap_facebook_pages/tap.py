@@ -43,7 +43,7 @@ class TapFacebookPages(Tap):
 
     config_jsonschema = PropertiesList(
         Property("access_token", StringType, required=True),
-        Property("page_ids", ArrayType(StringType), required=True),
+        Property("page_ids", ArrayType(StringType)),
         Property("start_date", DateTimeType, required=True),
     ).to_dict()
 
@@ -103,7 +103,7 @@ class TapFacebookPages(Tap):
             params["after"] = next_page_cursor
             for pages in response_json["data"]:
                 page_id = pages["id"]
-                if page_id not in page_ids:
+                if page_ids and page_id not in page_ids:
                     continue
 
                 self.logger.info("Get token for page '{}'".format(pages["name"]))
@@ -112,14 +112,23 @@ class TapFacebookPages(Tap):
     def discover_streams(self) -> List[Stream]:
         streams = []
         # update page access tokens on sync
-        page_ids = self.config['page_ids']
+        page_ids = self.config.get("page_ids")
         self.access_tokens = {}
-        self.partitions = [{"page_id": x} for x in page_ids]
         if self.input_catalog:
-            if len(page_ids) > 1:
-                self.get_pages_tokens(page_ids, self.config['access_token'])
+            if page_ids and len(page_ids) == 1:
+                self.access_tokens[page_ids[0]] = self.exchange_token(
+                    page_ids[0], self.config["access_token"]
+                )
             else:
-                self.access_tokens[page_ids[0]] = self.exchange_token(page_ids[0], self.config['access_token'])
+                self.get_pages_tokens(page_ids, self.config["access_token"])
+                if not page_ids:
+                    self.logger.info(
+                        "`page_ids` not provided. Using all accessible pages."
+                    )
+                    page_ids = list(self.access_tokens.keys())
+                    self.config["page_ids"] = page_ids
+
+        self.partitions = [{"page_id": x} for x in page_ids] if page_ids else []
         for stream_class in STREAM_TYPES:
             stream = stream_class(tap=self)
             stream.partitions = self.partitions
