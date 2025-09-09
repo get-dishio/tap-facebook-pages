@@ -30,7 +30,7 @@ NEXT_FACEBOOK_PAGE = "NEXT_FACEBOOK_PAGE"
 MAX_RETRY = 5
 SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
 
-BASE_URL = "https://graph.facebook.com/v18.0/{page_id}"
+BASE_URL = "https://graph.facebook.com/{version}/{page_id}"
 
 
 def is_status_code_fn(blacklist=None, whitelist=None):
@@ -174,7 +174,7 @@ class FacebookPagesStream(RESTStream):
 
     @property
     def url_base(self) -> str:
-        return BASE_URL
+        return BASE_URL.format(version=self.config["api_version"], page_id="{page_id}")
 
     def get_url_params(self, partition: Optional[dict], next_page_token: Optional[Any] = None) -> Dict[str, Any]:
         self.page_id = partition["page_id"]
