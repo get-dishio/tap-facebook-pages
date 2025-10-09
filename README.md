@@ -2,16 +2,30 @@
 
 ### Accepted Config Options
 
+#### Minimal config (all accessible pages):
+
 ```json
 {
   "start_date": "2020-03-04T01:55:24Z",
-  "page_ids": [
-    "id_1",
-    "id_2"
-  ],
   "access_token": "access_token"
 }
 ```
+
+#### Config with specific pages:
+
+```json
+{
+  "start_date": "2020-03-04T01:55:24Z",
+  "access_token": "access_token",
+  "page_ids": [
+    { "id": "id_1", "name": "Page Name 1" },
+    { "id": "id_2" }
+  ]
+}
+```
+
+- `page_ids` is optional. If omitted, the tap will use all accessible pages for the access token.
+- Each entry in `page_ids` should be an object with a required `id` and an optional `name` (for your reference only).
 
 ### Source Authentication and Authorization
 
@@ -310,5 +324,3 @@ Supported streams:
     - post_video_ad_break_ad_impressions
     - post_video_ad_break_earnings
     - post_video_ad_break_ad_cpm
-
-

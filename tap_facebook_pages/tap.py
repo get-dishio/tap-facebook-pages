@@ -30,7 +30,7 @@ STREAM_TYPES = [
 
 ACCOUNTS_URL = "https://graph.facebook.com/{version}/{user_id}/accounts"
 ME_URL = "https://graph.facebook.com/{version}/me"
-BASE_URL = "https://graph.facebook.com/{version}/{page_id}"
+BASE_URL = "https://graph.facebook.com/{version}/{id}"
 
 session = requests.Session()
 
@@ -42,7 +42,15 @@ class TapFacebookPages(Tap):
 
     config_jsonschema = PropertiesList(
         Property("access_token", StringType, required=True),
-        Property("page_ids", ArrayType(StringType)),
+        Property(
+            "page_ids",
+            ArrayType(
+                PropertiesList(
+                    Property("id", StringType, required=True),
+                    Property("name", StringType)
+                ).to_type()
+            )
+        ),
         Property("start_date", DateTimeType, required=True),
         Property("api_version", StringType, default="v12.0"),
     ).to_dict()
@@ -52,19 +60,21 @@ class TapFacebookPages(Tap):
                  parse_env_config: bool = True) -> None:
         super().__init__(config, catalog, state, parse_env_config)
         # update page access tokens on sync
-        page_ids = self.config['page_ids']
+        page_objs = self.config['page_ids']
+        self.page_ids = [p["id"] for p in page_objs]
+        self.id_name_map = {p["id"]: p.get("name", "") for p in page_objs}
 
-    def exchange_token(self, page_id: str, access_token: str):
+    def exchange_token(self, id: str, access_token: str):
         url = BASE_URL.format(
             version=self.config["api_version"],
-            page_id=page_id
+            id=id
         )
         data = {
             'fields': 'access_token,name',
             'access_token': access_token
         }
 
-        self.logger.info("Exchanging access token for page with id=" + page_id)
+        self.logger.info("Exchanging access token for page with id=" + id)
         response = session.get(url=url, params=data)
         response_data = json.loads(response.text)
         if response.status_code != 200:
@@ -75,7 +85,7 @@ class TapFacebookPages(Tap):
             raise RuntimeError(
                 error_message
             )
-        self.logger.info("Successfully exchanged access token for page with id=" + page_id)
+        self.logger.info("Successfully exchanged access token for page with id=" + id)
         return response_data['access_token']
 
     def get_pages_tokens(self, page_ids: list, access_token: str):
@@ -105,12 +115,12 @@ class TapFacebookPages(Tap):
             next_page_cursor = response_json.get("paging", {}).get("cursors", {}).get("after", False)
             params["after"] = next_page_cursor
             for pages in response_json["data"]:
-                page_id = pages["id"]
-                if page_ids and page_id not in page_ids:
+                id = pages["id"]
+                if page_ids and id not in page_ids:
                     continue
 
                 self.logger.info("Get token for page '{}'".format(pages["name"]))
-                self.access_tokens[page_id] = pages["access_token"]
+                self.access_tokens[id] = pages["access_token"]
 
     def discover_streams(self) -> List[Stream]:
         streams = []
@@ -127,7 +137,8 @@ class TapFacebookPages(Tap):
 
     def load_streams(self) -> List[Stream]:
         # Get tokens now, at the beginning of the sync
-        page_ids = self.config.get("page_ids")
+        page_objs = self.config.get("page_ids")
+        page_ids = [p["id"] for p in page_objs] if page_objs else []
         self.access_tokens = {}
         if page_ids and len(page_ids) == 1:
             self.access_tokens[page_ids[0]] = self.exchange_token(
@@ -140,9 +151,9 @@ class TapFacebookPages(Tap):
                     "`page_ids` not provided. Using all accessible pages."
                 )
                 page_ids = list(self.access_tokens.keys())
-                self.config["page_ids"] = page_ids
+                self.config["page_ids"] = [{"id": pid, "name": ""} for pid in page_ids]
 
-        self.partitions = [{"page_id": x} for x in page_ids] if page_ids else []
+        self.partitions = [{"id": x} for x in page_ids] if page_ids else []
 
         all_streams = self.discover_streams()
 
