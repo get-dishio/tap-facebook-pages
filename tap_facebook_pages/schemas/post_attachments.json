@@ -4,6 +4,12 @@
 		"object"
 	],
 	"properties": {
+		"attachment_id": {
+			"type": [
+				"string"
+			],
+			"description": "A unique identifier for the attachment, synthesized as post_id + post_created_time + index."
+		},
 		"description": {
 			"type": [
 				"null",

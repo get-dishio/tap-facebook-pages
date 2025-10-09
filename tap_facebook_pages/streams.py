@@ -42,14 +42,28 @@ class Page(FacebookPagesStream):
     forced_replication_method = "FULL_TABLE"
     schema_filepath = SCHEMAS_DIR / "page.json"
 
+    def sync(self):
+        """Override sync to manually emit records, bypassing SDK orchestration."""
+        import singer
+        partitions = getattr(self, "_partitions", []) or []
+        for partition in partitions:
+            if not partition.get("id"):
+                logger.info(f"SKIP: Page.sync skipping partition with no id: {partition}")
+                continue
+            rows_yielded = 0
+            for row in FacebookPagesStream.request_records(self, partition):
+                singer.write_record(self.name, row)
+                rows_yielded += 1
+
     def get_records(self, context: Optional[dict]) -> Iterable[dict]:
-        # Only yield records for partitions with a valid id
-        partitions = getattr(self, "partitions", []) or []
+        partitions = getattr(self, "_partitions", []) or []
         for partition in partitions:
             if not partition.get("id"):
                 logger.info(f"SKIP: Page.get_records skipping partition with no id: {partition}")
                 continue
-            yield from self.request_records(partition)
+            # Explicitly call the parent class's request_records to avoid MRO issues
+            for row in FacebookPagesStream.request_records(self, partition):
+                yield row
 
     def get_url_params(self, partition: Optional[dict], next_page_token: Optional[Any] = None) -> Dict[str, Any]:
         params = {}
@@ -57,6 +71,11 @@ class Page(FacebookPagesStream):
             self.schema["properties"].keys())
         params.update({"fields": fields})
         return params
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        data = response.json()
+        # Facebook /{id} returns a single object, not a list
+        yield data
 
     def post_process(self, row: dict, stream_or_partition_state: dict) -> dict:
         return row
@@ -163,7 +182,7 @@ class PostAttachments(FacebookPagesStream):
     name = "post_attachments"
     tap_stream_id = "post_attachments"
     path = "/{id}/posts"
-    primary_keys = ["id"]
+    primary_keys = ["attachment_id"]
     replication_key = "post_created_time"
     replication_method = "INCREMENTAL"
     schema_filepath = SCHEMAS_DIR / "post_attachments.json"
@@ -209,17 +228,22 @@ class PostAttachments(FacebookPagesStream):
                 "post_id": row["id"],
                 "post_created_time": row["created_time"]
             }
+            attachment_index = 0
             if "attachments" in row:
                 for att in row["attachments"]["data"]:
                     if "subattachments" in att:
                         for sub in att["subattachments"]["data"]:
                             out = dict(sub)
                             out.update(parent)
+                            out["attachment_id"] = f"{row['id']}_{row['created_time']}_{attachment_index}"
+                            attachment_index += 1
                             yield out
                         att = dict(att)
                         att.pop("subattachments", None)
                     out = dict(att)
                     out.update(parent)
+                    out["attachment_id"] = f"{row['id']}_{row['created_time']}_{attachment_index}"
+                    attachment_index += 1
                     yield out
 
 
