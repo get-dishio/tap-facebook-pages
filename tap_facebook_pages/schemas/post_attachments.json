@@ -16,6 +16,12 @@
 				"string"
 			]
 		},
+		"title": {
+			"type": [
+				"null",
+				"string"
+			]
+		},
 		"media": {
 			"type": [
 				"null",
