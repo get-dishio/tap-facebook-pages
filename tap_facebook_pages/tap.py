@@ -48,11 +48,11 @@ class TapFacebookPages(Tap):
                 PropertiesList(
                     Property("id", StringType, required=True),
                     Property("name", StringType)
-                ).to_type()
+                )
             )
         ),
         Property("start_date", DateTimeType, required=True),
-        Property("api_version", StringType, default="v12.0"),
+        Property("api_version", StringType, default="v20.0"),
     ).to_dict()
 
     def __init__(self, config: Union[PurePath, str, dict, None] = None,
@@ -60,7 +60,7 @@ class TapFacebookPages(Tap):
                  parse_env_config: bool = True) -> None:
         super().__init__(config, catalog, state, parse_env_config)
         # update page access tokens on sync
-        page_objs = self.config['page_ids']
+        page_objs = self.config.get("page_ids") or []
         self.page_ids = [p["id"] for p in page_objs]
         self.id_name_map = {p["id"]: p.get("name", "") for p in page_objs}
 
@@ -123,11 +123,10 @@ class TapFacebookPages(Tap):
                 self.access_tokens[id] = pages["access_token"]
 
     def discover_streams(self) -> List[Stream]:
-        streams = []
-        for stream_class in STREAM_TYPES:
-            stream = stream_class(tap=self)
-            streams.append(stream)
-
+        """Return a list of discovered streams."""
+        # The 'partitions' are now managed in 'load_streams'
+        # and attached to the streams there. This method just discovers them.
+        streams = [stream_class(tap=self) for stream_class in STREAM_TYPES]
         for insight_stream in INSIGHT_STREAMS:
             stream = insight_stream["class"](tap=self, name=insight_stream["name"])
             stream.tap_stream_id = insight_stream["name"]
@@ -140,6 +139,7 @@ class TapFacebookPages(Tap):
         page_objs = self.config.get("page_ids")
         page_ids = [p["id"] for p in page_objs] if page_objs else []
         self.access_tokens = {}
+        effective_page_ids = page_ids.copy()
         if page_ids and len(page_ids) == 1:
             self.access_tokens[page_ids[0]] = self.exchange_token(
                 page_ids[0], self.config["access_token"]
@@ -150,10 +150,10 @@ class TapFacebookPages(Tap):
                 self.logger.info(
                     "`page_ids` not provided. Using all accessible pages."
                 )
-                page_ids = list(self.access_tokens.keys())
-                self.config["page_ids"] = [{"id": pid, "name": ""} for pid in page_ids]
+                effective_page_ids = list(self.access_tokens.keys())
+                # Do NOT mutate self.config here
 
-        self.partitions = [{"id": x} for x in page_ids] if page_ids else []
+        self.partitions = [{"id": x} for x in effective_page_ids if x] if effective_page_ids else []
 
         all_streams = self.discover_streams()
 
@@ -168,10 +168,11 @@ class TapFacebookPages(Tap):
         else:
             loaded_streams = all_streams
 
-        # Attach tokens/partitions to the selected streams
+        # Attach tokens and partitions to the selected streams
         for stream in loaded_streams:
-            stream.partitions = self.partitions
             stream.access_tokens = self.access_tokens
+            # All streams in this tap are partitioned by page_id, so assign to all.
+            stream._partitions = self.partitions
             self.logger.info(f"Loading stream: '{stream.tap_stream_id}'")
 
         return loaded_streams

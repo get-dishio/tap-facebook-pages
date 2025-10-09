@@ -112,6 +112,43 @@ def error_handler(fnc):
 class FacebookPagesStream(RESTStream):
     """Stream class for facebook-pages streams."""
 
+    def get_records(self, context: Optional[dict]) -> Iterable[dict]:
+        """
+        Ensure that records are always fetched with a valid partition context.
+        If context is None, iterate over self._partitions (set in tap.py).
+        """
+        partitions = getattr(self, "_partitions", None)
+        if context is None and partitions:
+            for partition in partitions:
+                yield from self.request_records(partition)
+        else:
+            yield from self.request_records(context)
+
+    def get_stream_or_partition_state(self, partition: dict) -> dict:
+        """Return the state for a given partition, or an empty dict if not found."""
+        if hasattr(self, "state") and self.state:
+            # The state structure may vary; this is a generic approach
+            partition_id = partition.get("id")
+            if partition_id and "bookmarks" in self.state:
+                # Try to return the state for this stream and partition
+                stream_state = self.state["bookmarks"].get(self.name, {})
+                return stream_state.get(partition_id, {})
+        return {}
+
+    def get_url(self, partition: Optional[dict] = None, next_page_token: Optional[Any] = None) -> str:
+        """Format the path with the partition/context dict and return the full URL."""
+        context = partition or {}
+        logger.info(f"DEBUG: get_url context for path formatting: {context}")
+        try:
+            path = self.path.format(**context)
+        except KeyError as e:
+            self.logger.critical(
+                f"Could not format path '{self.path}' with context {context}. "
+                f"Missing key: {e}"
+            )
+            raise
+        return f"{self.url_base}{path}"
+
     @property
     def url_base(self) -> str:
         return f"https://graph.facebook.com/{self.config['api_version']}"
@@ -154,6 +191,15 @@ class FacebookPagesStream(RESTStream):
                 next_page_token = None
                 resp = self._request_with_backoff(prepared_request)
                 for row in self.parse_response(resp):
+                    # Enrich rows with page_id if partition is present and stream expects it
+                    if partition and "id" in partition:
+                        pid = partition["id"]
+                        # Add page_id for relevant streams
+                        if getattr(self, "name", None) in {"posts", "post_tagged_profile", "post_attachments"}:
+                            row.setdefault("page_id", pid)
+                        # For insight streams, match by name prefix
+                        elif getattr(self, "name", "").startswith("post_insight_") or getattr(self, "name", "").startswith("page_insight_"):
+                            row.setdefault("page_id", pid)
                     yield row
                 previous_token = copy.deepcopy(next_page_token)
                 next_page_token = self.get_next_page_token(
