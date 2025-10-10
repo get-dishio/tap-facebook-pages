@@ -50,6 +50,7 @@ class Page(FacebookPagesStream):
             if not partition.get("id"):
                 logger.info(f"SKIP: Page.sync skipping partition with no id: {partition}")
                 continue
+            singer.write_schema(self.name, self.schema, self.primary_keys)
             rows_yielded = 0
             for row in FacebookPagesStream.request_records(self, partition):
                 singer.write_record(self.name, row)
