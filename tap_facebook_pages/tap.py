@@ -43,7 +43,7 @@ class TapFacebookPages(Tap):
     config_jsonschema = PropertiesList(
         Property("access_token", StringType, required=True),
         Property(
-            "page_ids",
+            "locations",
             ArrayType(
                 PropertiesList(
                     Property("id", StringType, required=True),
@@ -60,8 +60,8 @@ class TapFacebookPages(Tap):
                  parse_env_config: bool = True) -> None:
         super().__init__(config, catalog, state, parse_env_config)
         # update page access tokens on sync
-        page_objs = self.config.get("page_ids") or []
-        self.page_ids = [p["id"] for p in page_objs]
+        page_objs = self.config.get("locations") or []
+        self.locations = [p["id"] for p in page_objs]
         self.id_name_map = {p["id"]: p.get("name", "") for p in page_objs}
 
     def exchange_token(self, id: str, access_token: str):
@@ -88,7 +88,7 @@ class TapFacebookPages(Tap):
         self.logger.info("Successfully exchanged access token for page with id=" + id)
         return response_data['access_token']
 
-    def get_pages_tokens(self, page_ids: list, access_token: str):
+    def get_pages_tokens(self, locations: list, access_token: str):
         params = {
             "access_token": access_token,
         }
@@ -116,7 +116,7 @@ class TapFacebookPages(Tap):
             params["after"] = next_page_cursor
             for pages in response_json["data"]:
                 id = pages["id"]
-                if page_ids and id not in page_ids:
+                if locations and id not in locations:
                     continue
 
                 self.logger.info("Get token for page '{}'".format(pages["name"]))
@@ -136,24 +136,24 @@ class TapFacebookPages(Tap):
 
     def load_streams(self) -> List[Stream]:
         # Get tokens now, at the beginning of the sync
-        page_objs = self.config.get("page_ids")
-        page_ids = [p["id"] for p in page_objs] if page_objs else []
+        page_objs = self.config.get("locations")
+        locations = [p["id"] for p in page_objs] if page_objs else []
         self.access_tokens = {}
-        effective_page_ids = page_ids.copy()
-        if page_ids and len(page_ids) == 1:
-            self.access_tokens[page_ids[0]] = self.exchange_token(
-                page_ids[0], self.config["access_token"]
+        effective_locations = locations.copy()
+        if locations and len(locations) == 1:
+            self.access_tokens[locations[0]] = self.exchange_token(
+                locations[0], self.config["access_token"]
             )
         else:
-            self.get_pages_tokens(page_ids, self.config["access_token"])
-            if not page_ids:
+            self.get_pages_tokens(locations, self.config["access_token"])
+            if not locations:
                 self.logger.info(
-                    "`page_ids` not provided. Using all accessible pages."
+                    "`locations` not provided. Using all accessible pages."
                 )
-                effective_page_ids = list(self.access_tokens.keys())
+                effective_locations = list(self.access_tokens.keys())
                 # Do NOT mutate self.config here
 
-        self.partitions = [{"id": x} for x in effective_page_ids if x] if effective_page_ids else []
+        self.partitions = [{"id": x} for x in effective_locations if x] if effective_locations else []
 
         all_streams = self.discover_streams()
 

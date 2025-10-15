@@ -17,15 +17,15 @@
 {
   "start_date": "2020-03-04T01:55:24Z",
   "access_token": "access_token",
-  "page_ids": [
+  "locations": [
     { "id": "id_1", "name": "Page Name 1" },
     { "id": "id_2" }
   ]
 }
 ```
 
-- `page_ids` is optional. If omitted, the tap will use all accessible pages for the access token.
-- Each entry in `page_ids` should be an object with a required `id` and an optional `name` (for your reference only).
+- `locations` is optional. If omitted, the tap will use all accessible pages for the access token.
+- Each entry in `locations` should be an object with a required `id` and an optional `name` (for your reference only).
 
 ### Source Authentication and Authorization
 
@@ -39,7 +39,7 @@ Consumes the Facebook Pages API documented here https://developers.facebook.com/
 
 Supported streams:
 
-- page -> Information about the pages identified by the page_ids set in the config file.
+- page -> Information about the pages identified by the locations set in the config file.
 - posts -> Retrieve all posts of the pages specified in the config files
 - post_tagged_profile -> Retrieve the names and the ids of the profiles which have been tagged in each post
 - post_attachments -> Retrieve all attachment informations for post attachments
